@@ -1,42 +1,68 @@
 #include "kalman_filter.h"
+#include "tools.h"
+#include <iostream>
+#include <cmath>
 
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
 
-// Please note that the Eigen library does not initialize 
-// VectorXd or MatrixXd objects with zeros upon creation.
-
-KalmanFilter::KalmanFilter() {}
-
-KalmanFilter::~KalmanFilter() {}
-
-void KalmanFilter::Init(VectorXd &x_in, MatrixXd &P_in, MatrixXd &F_in,
-                        MatrixXd &H_in, MatrixXd &R_in, MatrixXd &Q_in) {
-  x_ = x_in;
-  P_ = P_in;
-  F_ = F_in;
-  H_ = H_in;
-  R_ = R_in;
-  Q_ = Q_in;
+KalmanFilter::KalmanFilter()
+{
 }
 
-void KalmanFilter::Predict() {
-  /**
-  TODO:
-    * predict the state
-  */
+KalmanFilter::~KalmanFilter()
+{
 }
 
-void KalmanFilter::Update(const VectorXd &z) {
-  /**
-  TODO:
-    * update the state by using Kalman Filter equations
-  */
+void KalmanFilter::Predict()
+{
+  x_ = F_ * x_;
+  P_ = F_ * P_ * F_.transpose() + Q_;
 }
 
-void KalmanFilter::UpdateEKF(const VectorXd &z) {
-  /**
-  TODO:
-    * update the state by using Extended Kalman Filter equations
-  */
+void KalmanFilter::Update(const VectorXd &z)
+{
+  const MatrixXd I = MatrixXd::Identity(x_.size(), x_.size());
+  const VectorXd z_pred = H_ * x_;
+  const VectorXd y = z - z_pred;
+  const MatrixXd Ht = H_.transpose();
+  const MatrixXd S = H_ * P_ * Ht + R_;
+  const MatrixXd K = P_ * Ht * S.inverse();
+
+  // new estimate
+  x_ = x_ + (K * y);
+  P_ = (I - K * H_) * P_;
+}
+
+double normalizeTheta(const double theta_in)
+{
+  double theta_norm = theta_in;
+  
+  while (theta_norm > M_PI)
+  {
+    theta_norm -= (2 * M_PI);
+  }
+  
+  while (theta_norm < -M_PI)
+  {
+    theta_norm += (2 * M_PI);
+  }
+
+  return theta_norm; 
+}
+
+// z - actual measurement in polar coordinates
+// h - predicted value x_ in polar coordinates (Hx)
+void KalmanFilter::UpdateEKF(const VectorXd &z, const VectorXd &h)
+{
+  const MatrixXd I = MatrixXd::Identity(x_.size(), x_.size());
+  const MatrixXd PHt = P_ * H_.transpose();
+  const MatrixXd S = H_ * PHt + R_;
+  const MatrixXd K = PHt * S.inverse();
+  VectorXd y = z - h; // dif between current radar measurement z and predicted x_ (in polar coordinates)
+  y(1) = normalizeTheta(y(1));
+  
+  // new estimate
+  x_ = x_ + (K * y);
+  P_ = (I - K * H_) * P_;
 }
